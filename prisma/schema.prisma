@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // Using sqlite for ease of demo/setup if Postgres is not available locally.
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          String    @default("WORKER") // WORKER, ADMIN, CONTRACTOR
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  worker        Worker?
+  notifications Notification[]
+  jobPosts      JobPost[]
+}
+
+model Worker {
+  worker_id          String    @id @default(cuid())
+  user_id            String    @unique
+  name               String?
+  preferred_language String?   @default("hi")
+  origin_state       String?
+  current_district   String?
+  occupation         String?
+  industry           String?
+  experience_months  Int?
+  consent_location   Boolean   @default(false)
+  consent_identity   Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user               User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  skills             WorkerSkill[]
+  employment         EmploymentSnapshot?
+  grievances         Grievance[]
+  applications       JobApplication[]
+}
+
+model WorkerSkill {
+  id                  String   @id @default(cuid())
+  worker_id           String
+  skill_code          String?
+  skill_name          String
+  experience_months   Int?
+  proficiency         String?  // BEGINNER, INTERMEDIATE, ADVANCED
+  verification_status String?  @default("SELF_DECLARED") // SELF_DECLARED, VERIFIED
+  
+  worker              Worker   @relation(fields: [worker_id], references: [worker_id], onDelete: Cascade)
+}
+
+model EmploymentSnapshot {
+  id               String   @id @default(cuid())
+  worker_id        String   @unique
+  industry         String?
+  occupation       String?
+  pay_amount       Float?
+  pay_frequency    String?  // DAILY, WEEKLY, MONTHLY
+  hours_per_day    Int?
+  days_per_month   Int?
+  employer_alias   String?
+  createdAt        DateTime @default(now())
+
+  worker           Worker   @relation(fields: [worker_id], references: [worker_id], onDelete: Cascade)
+}
+
+model Scheme {
+  scheme_id        String   @id @default(cuid())
+  name             String
+  jurisdiction     String?
+  description      String?
+  effective_from   DateTime?
+  effective_to     DateTime?
+  source           String?
+  source_url       String?
+  last_verified_at DateTime?
+  is_demo          Boolean  @default(false)
+}
+
+model Grievance {
+  grievance_id   String   @id @default(cuid())
+  worker_id      String?  // nullable for anonymous
+  anonymous      Boolean  @default(false)
+  category       String
+  description    String
+  district       String?
+  employer_alias String?
+  incident_date  DateTime?
+  severity       String?
+  status         String   @default("OPEN")
+  createdAt      DateTime @default(now())
+
+  worker         Worker?  @relation(fields: [worker_id], references: [worker_id], onDelete: SetNull)
+  indicators     RiskIndicator[]
+}
+
+model RiskIndicator {
+  id               String   @id @default(cuid())
+  grievance_id     String?
+  worker_id        String?
+  indicator_type   String
+  evidence_excerpt String?
+  points           Int
+  model_confidence Float?
+  createdAt        DateTime @default(now())
+
+  grievance        Grievance? @relation(fields: [grievance_id], references: [grievance_id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  user_id   String
+  title     String
+  message   String
+  type      String
+  metadata  String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+
+model JobPost {
+  id            String   @id @default(cuid())
+  contractorId  String
+  title         String
+  industry      String
+  skill         String?
+  district      String
+  salary        Float
+  description   String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  contractor    User     @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  applications  JobApplication[]
+}
+
+model JobApplication {
+  id          String   @id @default(cuid())
+  jobPostId   String
+  workerId    String
+  status      String   @default("APPLIED") // APPLIED, ACCEPTED, REJECTED
+  createdAt   DateTime @default(now())
+
+  jobPost     JobPost  @relation(fields: [jobPostId], references: [id], onDelete: Cascade)
+  worker      Worker   @relation(fields: [workerId], references: [worker_id], onDelete: Cascade)
+}
+
