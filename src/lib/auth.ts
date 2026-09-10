@@ -12,18 +12,29 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email) return null;
-        let user = await prisma.user.findUnique({ where: { email: credentials.email } });
-        if (!user) {
-          const isGov = credentials.email.includes('@gujarat.gov.in');
-          const isContractor = credentials.email.includes('contractor');
-          const role = isGov ? "ADMIN" : (isContractor ? "CONTRACTOR" : "WORKER");
-          user = await prisma.user.create({ data: { email: credentials.email, name: credentials.email.split('@')[0], role } });
-        } else if (credentials.email.includes('@gujarat.gov.in') && user.role !== 'ADMIN') {
-           user = await prisma.user.update({ where: { email: credentials.email }, data: { role: 'ADMIN' } });
-        } else if (credentials.email.includes('contractor') && user.role !== 'CONTRACTOR') {
-           user = await prisma.user.update({ where: { email: credentials.email }, data: { role: 'CONTRACTOR' } });
+        const isGov = credentials.email.includes('@gujarat.gov.in');
+        const isContractor = credentials.email.includes('contractor');
+        const role = isGov ? "ADMIN" : (isContractor ? "CONTRACTOR" : "WORKER");
+
+        try {
+          let user = await prisma.user.findUnique({ where: { email: credentials.email } });
+          if (!user) {
+            user = await prisma.user.create({ data: { email: credentials.email, name: credentials.email.split('@')[0], role } });
+          } else if (isGov && user.role !== 'ADMIN') {
+             user = await prisma.user.update({ where: { email: credentials.email }, data: { role: 'ADMIN' } });
+          } else if (isContractor && user.role !== 'CONTRACTOR') {
+             user = await prisma.user.update({ where: { email: credentials.email }, data: { role: 'CONTRACTOR' } });
+          }
+          return user;
+        } catch (dbError) {
+          console.error("Database Auth Error, falling back to instant demo session:", dbError);
+          return {
+            id: "demo-" + Math.random().toString(36).substring(7),
+            email: credentials.email,
+            name: credentials.email.split('@')[0],
+            role: role
+          };
         }
-        return user;
       }
     })
   ],
